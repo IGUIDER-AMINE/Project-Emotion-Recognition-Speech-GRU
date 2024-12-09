@@ -18,6 +18,10 @@ The combined dataset used in this research study is a fusion of four prominent d
 
 # Model
 
+## Model Architecture
+
+<img src="./model_architecture.png" alt="model_architecture.png"/>
+
 I introduce a specialized model meticulously crafted for extracting emotional cues from speech signals. This model harmoniously merges Convolutional 1D layers for spatial pattern recognition with Gated Recurrent Unit (GRU) layers for capturing temporal dependencies, augmented by an Attention Mechanism for enhanced context understanding. This fusion empowers the model to decipher the content and context of speech, a pivotal aspect for accurate emotion recognition.
 
 To bolster stability and performance, I integrate techniques like dropout regularization and batch normalization into the model architecture. These techniques are crucial in mitigating overfitting and ensuring robust performance across diverse datasets.
