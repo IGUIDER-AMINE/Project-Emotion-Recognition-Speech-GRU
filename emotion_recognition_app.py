@@ -4,7 +4,7 @@ import librosa
 import os
 from tensorflow.keras.models import load_model
 
-# Define emotion labels
+# Définir les labels des émotions
 emotion_labels = {
     0: "Neutral",
     1: "Happy",
@@ -15,123 +15,112 @@ emotion_labels = {
     6: "Surprise"
 }
 
-# Function to preprocess audio
+# Fonction pour prétraiter l'audio
 def preprocess_audio(path, target_sr=22050, n_mels=15, expected_time_steps=352):
     """
-    Preprocess audio for emotion recognition by extracting Mel-spectrogram features.
+    Prétraiter un fichier audio en extrayant des caractéristiques de Mel-spectrogramme.
 
     Parameters:
-        path (str): Path to the audio file.
-        target_sr (int): Target sampling rate.
-        n_mels (int): Number of Mel-frequency features.
-        expected_time_steps (int): Expected number of time steps.
+        path (str): Chemin du fichier audio.
+        target_sr (int): Fréquence d'échantillonnage cible.
+        n_mels (int): Nombre de caractéristiques Mel.
+        expected_time_steps (int): Nombre attendu de pas de temps.
 
     Returns:
-        np.ndarray: Processed Mel-spectrogram features.
+        np.ndarray: Mel-spectrogramme prétraité.
     """
     try:
-        # Load audio
+        # Charger l'audio
         audio, sr = librosa.load(path, sr=target_sr)
-        print(f"[DEBUG] Audio shape: {audio.shape}, Sampling rate: {sr}")
 
-        # Trim silence
+        # Retirer les silences
         trimmed, _ = librosa.effects.trim(audio, top_db=25)
-        print(f"[DEBUG] Trimmed audio shape: {trimmed.shape}")
 
-        # Extract Mel-spectrogram
+        # Extraire le Mel-spectrogramme
         mel_spectrogram = librosa.feature.melspectrogram(y=trimmed, sr=target_sr, n_mels=n_mels)
         mel_spectrogram_db = librosa.power_to_db(mel_spectrogram, ref=np.max)
 
-        # Transpose and pad/truncate
-        mel_spectrogram_db = mel_spectrogram_db.T  # Transpose to shape (time_steps, n_mels)
-        print(f"[DEBUG] Mel-spectrogram shape after transpose: {mel_spectrogram_db.shape}")
-
+        # Transposer et ajuster la taille
+        mel_spectrogram_db = mel_spectrogram_db.T
         if mel_spectrogram_db.shape[0] < expected_time_steps:
             padding = expected_time_steps - mel_spectrogram_db.shape[0]
             mel_spectrogram_db = np.pad(mel_spectrogram_db, ((0, padding), (0, 0)), mode='constant')
         else:
             mel_spectrogram_db = mel_spectrogram_db[:expected_time_steps, :]
 
-        print(f"[DEBUG] Mel-spectrogram shape after padding/truncation: {mel_spectrogram_db.shape}")
-
-        # Save for debugging
-        np.save("debug_input.npy", mel_spectrogram_db)
-
-        # Add batch dimension
+        # Ajouter une dimension pour le batch
         return np.expand_dims(mel_spectrogram_db, axis=0)
     except Exception as e:
-        print(f"[ERROR] Preprocessing failed: {e}")
-        raise e
+        raise RuntimeError(f"Erreur lors du prétraitement de l'audio : {e}")
 
-# Function to predict emotion
+# Fonction pour prédire l'émotion
 def predict_emotion(audio_file_path, model):
     """
-    Predict the emotion of an audio file using the trained GRU model.
+    Prédire l'émotion d'un fichier audio.
 
     Parameters:
-        audio_file_path (str): Path to the audio file.
-        model: Trained TensorFlow model.
+        audio_file_path (str): Chemin du fichier audio.
+        model: Modèle TensorFlow entraîné.
 
     Returns:
-        tuple: Predicted emotion label and confidence score.
+        tuple: Émotion prédite et score de confiance.
     """
     try:
-        # Preprocess audio
+        # Prétraiter l'audio
         input_data = preprocess_audio(audio_file_path, expected_time_steps=352)
-        print(f"[DEBUG] Input data shape: {input_data.shape}")
 
-        # Predict emotion
+        # Faire une prédiction
         predictions = model.predict(input_data)
-        print(f"[DEBUG] Raw predictions: {predictions}")
-
         predicted_emotion_index = np.argmax(predictions)
         confidence = np.max(predictions)
 
-        # Map prediction to emotion label
+        # Mapper l'indice à une étiquette d'émotion
         predicted_emotion = emotion_labels[predicted_emotion_index]
         return predicted_emotion, confidence
     except Exception as e:
-        print(f"[ERROR] Prediction failed: {e}")
-        raise e
+        raise RuntimeError(f"Erreur lors de la prédiction : {e}")
 
-# Streamlit app
+# Application Streamlit
 def main():
-    st.title("Emotion Recognition from Speech Signals")
-    st.write("Upload an audio file to predict the emotion.")
+    st.title("Reconnaissance des émotions dans les signaux vocaux")
+    st.write("Téléchargez un fichier audio pour prédire l'émotion associée.")
 
-    # File uploader
-    uploaded_file = st.file_uploader("Choose an audio file", type=["wav", "mp3"])
+    # Chargement de fichier
+    uploaded_file = st.file_uploader("Choisissez un fichier audio (.wav ou .mp3)", type=["wav", "mp3"])
 
     if uploaded_file is not None:
+        # Enregistrer le fichier temporairement
         temp_audio_file = "temp_audio_file.wav"
         with open(temp_audio_file, "wb") as f:
             f.write(uploaded_file.getbuffer())
-        
-        # Display audio in Streamlit
+
+        # Afficher le fichier audio dans Streamlit
         st.audio(temp_audio_file, format="audio/wav")
-        st.write("Processing the uploaded file...")
+        st.write("**Analyse en cours...**")
 
         try:
-            # Verify audio file is readable
+            # Vérification du fichier audio
             audio, sr = librosa.load(temp_audio_file, sr=None)
-            st.write(f"**Audio properties:** Sampling rate = {sr}, Duration = {len(audio)/sr:.2f} seconds")
+            duration = len(audio) / sr
+            if duration < 1.0:
+                st.error("Le fichier audio est trop court pour une reconnaissance fiable des émotions.")
+                return
 
-            # Load the model
+            # Charger le modèle
             model = load_model("model_gru.h5")
-            print(f"[DEBUG] Model loaded successfully with input shape: {model.input_shape}")
 
-            # Predict emotion
-            predicted_emotion, confidence = predict_emotion(temp_audio_file, model)
+            # Prédire l'émotion
+            with st.spinner("Prédiction en cours..."):
+                predicted_emotion, confidence = predict_emotion(temp_audio_file, model)
 
-            # Display results
-            st.write(f"**Predicted Emotion:** {predicted_emotion}")
-            st.write(f"**Confidence Score:** {confidence:.2f}")
+            # Afficher les résultats
+            st.success(f"**Émotion prédite :** {predicted_emotion}")
+            st.write(f"**Score de confiance :** {confidence:.2f}")
 
         except Exception as e:
-            st.error(f"An error occurred: {e}")
-            print(f"[ERROR] {e}")
+            st.error(f"Une erreur est survenue : {e}")
 
-        # Cleanup temporary file
+        # Supprimer le fichier temporaire
         if os.path.exists(temp_audio_file):
             os.remove(temp_audio_file)
 
