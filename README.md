@@ -30,6 +30,13 @@ The finalized architecture encompasses dense layers tailored for comprehensive f
 
 ---
 
+# Streamlit App
+
+<img src="./interface_app.png" alt="interface_app.png"/>
+<a href="https://project-emotion-recognition-speech-gru-yzthsrpm4amb4qs6feyem8.streamlit.app/">Go To App</a>
+
+---
+
 # Results
 
 My proposed CNN+GRU model demonstrated a remarkable accuracy of 83.54%, showcasing a substantial improvement over the conventional LSTM model. This notable enhancement in accuracy reaffirms the effectiveness of our model in accurately discerning emotional states from speech data. Additionally, our CNN+GRU model exhibited another significant advantage in terms of training time, further emphasizing the efficiency and scalability of our approach.

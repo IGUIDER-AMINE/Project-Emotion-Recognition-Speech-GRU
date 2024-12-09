@@ -29,35 +29,39 @@ def preprocess_audio(path, target_sr=22050, n_mels=15, expected_time_steps=352):
     Returns:
         np.ndarray: Processed Mel-spectrogram features.
     """
-    # Load audio
-    audio, sr = librosa.load(path, sr=target_sr)
-    print(f"[DEBUG] Audio shape: {audio.shape}, Sampling rate: {sr}")
+    try:
+        # Load audio
+        audio, sr = librosa.load(path, sr=target_sr)
+        print(f"[DEBUG] Audio shape: {audio.shape}, Sampling rate: {sr}")
 
-    # Trim silence
-    trimmed, _ = librosa.effects.trim(audio, top_db=25)
-    print(f"[DEBUG] Trimmed audio shape: {trimmed.shape}")
+        # Trim silence
+        trimmed, _ = librosa.effects.trim(audio, top_db=25)
+        print(f"[DEBUG] Trimmed audio shape: {trimmed.shape}")
 
-    # Extract Mel-spectrogram
-    mel_spectrogram = librosa.feature.melspectrogram(y=trimmed, sr=target_sr, n_mels=n_mels)
-    mel_spectrogram_db = librosa.power_to_db(mel_spectrogram, ref=np.max)
+        # Extract Mel-spectrogram
+        mel_spectrogram = librosa.feature.melspectrogram(y=trimmed, sr=target_sr, n_mels=n_mels)
+        mel_spectrogram_db = librosa.power_to_db(mel_spectrogram, ref=np.max)
 
-    # Transpose to match time steps and truncate or pad to expected time steps
-    mel_spectrogram_db = mel_spectrogram_db.T  # Transpose to shape (time_steps, n_mels)
-    print(f"[DEBUG] Mel-spectrogram shape after transpose: {mel_spectrogram_db.shape}")
+        # Transpose and pad/truncate
+        mel_spectrogram_db = mel_spectrogram_db.T  # Transpose to shape (time_steps, n_mels)
+        print(f"[DEBUG] Mel-spectrogram shape after transpose: {mel_spectrogram_db.shape}")
 
-    if mel_spectrogram_db.shape[0] < expected_time_steps:
-        padding = expected_time_steps - mel_spectrogram_db.shape[0]
-        mel_spectrogram_db = np.pad(mel_spectrogram_db, ((0, padding), (0, 0)), mode='constant')
-    else:
-        mel_spectrogram_db = mel_spectrogram_db[:expected_time_steps, :]
+        if mel_spectrogram_db.shape[0] < expected_time_steps:
+            padding = expected_time_steps - mel_spectrogram_db.shape[0]
+            mel_spectrogram_db = np.pad(mel_spectrogram_db, ((0, padding), (0, 0)), mode='constant')
+        else:
+            mel_spectrogram_db = mel_spectrogram_db[:expected_time_steps, :]
 
-    print(f"[DEBUG] Mel-spectrogram shape after padding/truncation: {mel_spectrogram_db.shape}")
+        print(f"[DEBUG] Mel-spectrogram shape after padding/truncation: {mel_spectrogram_db.shape}")
 
-    # Save preprocessed input for comparison
-    np.save("debug_input.npy", mel_spectrogram_db)
+        # Save for debugging
+        np.save("debug_input.npy", mel_spectrogram_db)
 
-    # Add batch dimension
-    return np.expand_dims(mel_spectrogram_db, axis=0)
+        # Add batch dimension
+        return np.expand_dims(mel_spectrogram_db, axis=0)
+    except Exception as e:
+        print(f"[ERROR] Preprocessing failed: {e}")
+        raise e
 
 # Function to predict emotion
 def predict_emotion(audio_file_path, model):
@@ -71,20 +75,24 @@ def predict_emotion(audio_file_path, model):
     Returns:
         tuple: Predicted emotion label and confidence score.
     """
-    # Preprocess the audio
-    input_data = preprocess_audio(audio_file_path, expected_time_steps=352)
-    print(f"[DEBUG] Input data shape: {input_data.shape}")
+    try:
+        # Preprocess audio
+        input_data = preprocess_audio(audio_file_path, expected_time_steps=352)
+        print(f"[DEBUG] Input data shape: {input_data.shape}")
 
-    # Predict emotion
-    predictions = model.predict(input_data)
-    print(f"[DEBUG] Raw predictions: {predictions}")
+        # Predict emotion
+        predictions = model.predict(input_data)
+        print(f"[DEBUG] Raw predictions: {predictions}")
 
-    predicted_emotion_index = np.argmax(predictions)
-    confidence = np.max(predictions)
+        predicted_emotion_index = np.argmax(predictions)
+        confidence = np.max(predictions)
 
-    # Get the emotion label
-    predicted_emotion = emotion_labels[predicted_emotion_index]
-    return predicted_emotion, confidence
+        # Map prediction to emotion label
+        predicted_emotion = emotion_labels[predicted_emotion_index]
+        return predicted_emotion, confidence
+    except Exception as e:
+        print(f"[ERROR] Prediction failed: {e}")
+        raise e
 
 # Streamlit app
 def main():
@@ -95,7 +103,6 @@ def main():
     uploaded_file = st.file_uploader("Choose an audio file", type=["wav", "mp3"])
 
     if uploaded_file is not None:
-        # Save the uploaded file
         temp_audio_file = "temp_audio_file.wav"
         with open(temp_audio_file, "wb") as f:
             f.write(uploaded_file.getbuffer())
@@ -124,7 +131,7 @@ def main():
             st.error(f"An error occurred: {e}")
             print(f"[ERROR] {e}")
 
-        # Cleanup temp file
+        # Cleanup temporary file
         if os.path.exists(temp_audio_file):
             os.remove(temp_audio_file)
 
